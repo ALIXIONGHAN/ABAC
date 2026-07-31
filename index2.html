@@ -1010,8 +1010,7 @@ class SheepGame {
 
 const game = new SheepGame();
 
-// 阻止卡牌区域滚动
-document.addEventListener('touchmove', e => { if (e.target.closest('#card-area')) e.preventDefault(); }, { passive: false });
+// 阻止卡牌区域滚动，通过CSS完成（#card-area touch-action: none 内置在 JS 渲染时设置）
 
 // resize 防抖 + 重新计算遮挡
 let rt;
