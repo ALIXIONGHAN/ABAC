@@ -661,8 +661,11 @@ class SheepGame {
 
     renderCards() {
         this.elCardArea.innerHTML = '';
+        // 按层排序实现：渲染顺序 = 低层先渲染(在下) → 高层后渲染(在上)
         const sorted = [...this.cards].sort((a, b) => a.layer - b.layer);
         const frag = document.createDocumentFragment();
+        // 给每张卡分配全局递增的 zIndex，保证同层内后面的卡在上层
+        let zIdx = 1;
         sorted.forEach(card => {
             const el = document.createElement('div');
             el.className = 'card'; el.dataset.id = card.id; el.textContent = card.pattern;
