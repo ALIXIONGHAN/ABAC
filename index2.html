@@ -1015,12 +1015,25 @@ const game = new SheepGame();
 // 阻止卡牌区域滚动
 document.addEventListener('touchmove', e => { if (e.target.closest('#card-area')) e.preventDefault(); }, { passive: false });
 
-// resize 防抖
+// resize 防抖 + 重新计算遮挡
 let rt;
 window.addEventListener('resize', () => {
     clearTimeout(rt);
     rt = setTimeout(() => {
-        if (game.elGameContainer && game.elGameContainer.classList.contains('active')) game.renderCards();
+        if (game.elGameContainer && game.elGameContainer.classList.contains('active')) {
+            game.renderCards();
+            game.updateCardAvailability();
+        }
+    }, 200);
+});
+
+// 方向变化时也重新计算
+window.addEventListener('orientationchange', () => {
+    setTimeout(() => {
+        if (game.elGameContainer && game.elGameContainer.classList.contains('active')) {
+            game.renderCards();
+            game.updateCardAvailability();
+        }
     }, 300);
 });
 </script>
