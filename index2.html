@@ -137,20 +137,9 @@
             pointer-events: none;
         }
 
-        /* 飞行状态 — 仅用 transform+opacity，compositor 动画 */
-        .card.flying {
-            pointer-events: none;
-            z-index: 200;
-        }
-
-        /* 消除 */
-        .card.eliminating {
-            animation: cardPop 0.3s ease forwards;
-            pointer-events: none;
-        }
+        /* 消除特效 */
         @keyframes cardPop {
             0% { transform: scale(1); opacity: 1; }
-            40% { transform: scale(1.2); opacity: 0.9; }
             100% { transform: scale(0); opacity: 0; }
         }
 
@@ -318,18 +307,8 @@
         }
         .shake { animation: shake 0.4s ease; }
 
-        /* 响应式 */
-        @media (max-width: 370px) {
-            :root { --cw: 42px; --ch: 48px; --bh: 62px; }
-            .card, .buffer-slot, .buffer-slot.filled { font-size: 24px; }
-            .game-title { font-size: 36px; }
-            .tool-btn { padding: 7px 12px; }
-            .tool-btn .tool-icon { font-size: 20px; }
-        }
-        @media (min-width: 420px) {
-            :root { --cw: 56px; --ch: 62px; --bh: 74px; }
-            .card, .buffer-slot, .buffer-slot.filled { font-size: 30px; }
-        }
+        /* 响应式 — card size is now computed in JS via _recalcCardSize() */
+        .card, .buffer-slot, .buffer-slot.filled { font-size: calc(var(--cw) * 0.54); }
     </style>
 </head>
 <body>
@@ -361,7 +340,7 @@
         <div class="stash-slot" id="stash-2"></div>
     </div>
     <div id="card-area"></div>
-    <div id="buffer-area"><div class="buffer-label">缓冲区 (7)</div></div>
+    <div id="buffer-area"><div class="buffer-label">缓冲区 (8)</div></div>
     <div class="tools-bar">
         <button class="tool-btn" id="tool-remove" onclick="game.useTool('remove')">
             <span class="tool-icon">📤</span><span class="tool-name">移出</span>
@@ -478,7 +457,7 @@ const AudioSys = {
 
 const CONFIG = {
     PATTERNS: ['🐑','🍎','🌸','🌟','🍀','🦋','🌈','🍄','🐰','🎈','🍉','🌻'],
-    BUFFER_SIZE: 7,
+    BUFFER_SIZE: 8,
     MATCH_COUNT: 3,
     TOOLS: { remove:{count:2,name:'移出'}, undo:{count:2,name:'撤销'}, shuffle:{count:2,name:'洗牌'} },
     CARD_WIDTH: 52, CARD_HEIGHT: 58
@@ -486,10 +465,10 @@ const CONFIG = {
 
 const LEVELS = {
     1: { name:'第一关', patterns:3, cardsPerPattern:3, layout:'grid', layers:1, gridCols:3, gridRows:3 },
-    2: { name:'第二关', patterns:8, cardsPerPattern:6, layout:'pyramid', layers:5,
-         layerCards: [4, 6, 10, 14, 14] },
-    3: { name:'第三关', patterns:12, cardsPerPattern:9, layout:'chaos', layers:7,
-         layerCards: [8, 12, 16, 18, 20, 20, 14] }
+    2: { name:'第二关', patterns:6, cardsPerPattern:9, layout:'pyramid', layers:2,
+         layerCards: [27, 27] },
+    3: { name:'第三关', patterns:7, cardsPerPattern:9, layout:'chaos', layers:2,
+         layerCards: [32, 31] }
 };
 
 class SheepGame {
@@ -498,8 +477,9 @@ class SheepGame {
         this.cards = []; this.buffer = []; this.stash = []; this.history = [];
         this.tools = { remove:2, undo:2, shuffle:2 };
         this.eliminated = 0; this.totalGroups = 0;
-        this.isGameOver = false; this.isProcessing = false;
+        this.isGameOver = false;
         this.adTimer = null; this._activeCards = [];
+        this._cw = CONFIG.CARD_WIDTH; this._ch = CONFIG.CARD_HEIGHT;
         this.initElements(); this.bindEvents();
     }
 
@@ -515,6 +495,24 @@ class SheepGame {
         this.elAdModal = document.getElementById('ad-modal');
         this.elHint = document.getElementById('hint-text');
         this.elStashArea = document.getElementById('stash-area');
+    }
+
+    _recalcCardSize() {
+        const aw = this.elCardArea.clientWidth;
+        // Target: fit ~6 columns of cards with gaps on any screen (iPhone 375px → iPad 1024px)
+        const targetCols = 6;
+        const totalGap = 8 * 2 + (targetCols - 1) * 4; // margins + card gaps
+        const idealCw = Math.floor((aw - totalGap) / targetCols);
+        // Clamp: 36px minimum (readable emoji), 56px maximum (not absurdly large)
+        this._cw = Math.max(36, Math.min(56, idealCw));
+        this._ch = Math.round(this._cw * 58 / 52);
+        // Update CSS variables so all card elements resize instantly
+        document.documentElement.style.setProperty('--cw', this._cw + 'px');
+        document.documentElement.style.setProperty('--ch', this._ch + 'px');
+        document.documentElement.style.setProperty('--bh', Math.round(this._ch * 1.2 + 4) + 'px');
+        // Sync CONFIG for layout math
+        CONFIG.CARD_WIDTH = this._cw;
+        CONFIG.CARD_HEIGHT = this._ch;
     }
 
     bindEvents() {
@@ -541,7 +539,7 @@ class SheepGame {
     startGame() {
         const cfg = LEVELS[this.currentLevel];
         this.cards = []; this.buffer = []; this.stash = []; this.history = [];
-        this.eliminated = 0; this.isGameOver = false; this.isProcessing = false;
+        this.eliminated = 0; this.isGameOver = false;
         this.tools = { remove:2, undo:2, shuffle:2 };
 
         this.elStartScreen.classList.add('hidden');
@@ -553,11 +551,20 @@ class SheepGame {
         this.elLevelDisplay.textContent = cfg.name;
         this.elStashArea.style.display = 'none';
         this.updateToolButtons();
+        // Recalculate card size BEFORE generating cards (needs card area dimensions)
+        this._recalcCardSize();
         this.generateCards(cfg);
         this.createBufferSlots();
         this.updateStats();
         this.renderCards();
         this.updateCardAvailability();
+    }
+
+    _reLayoutCards() {
+        const cfg = LEVELS[this.currentLevel];
+        if (cfg.layout === 'grid') this.layoutGrid(this.cards, cfg);
+        else if (cfg.layout === 'chaos') this.layoutChaos(this.cards, cfg);
+        else this.layoutPyramid(this.cards, cfg);
     }
 
     generateCards(config) {
@@ -595,71 +602,127 @@ class SheepGame {
         const aw = this.elCardArea.clientWidth || 340;
         const ah = this.elCardArea.clientHeight || 420;
         const cw = CONFIG.CARD_WIDTH, ch = CONFIG.CARD_HEIGHT;
-        let idx = 0;
-        config.layerCards.forEach((count, li) => {
-            const layerCards = cards.slice(idx, idx + count); idx += count;
-            const radius = 70 + li * 30;
-            const cx = aw / 2 - cw / 2, cy = ah / 2 - ch / 2 - 15;
-            layerCards.forEach((c, i) => {
-                const angle = (i / count) * Math.PI * 2 + li * 0.4;
-                const r = radius * (0.25 + Math.random() * 0.75);
-                c.layer = li;
-                c.x = cx + Math.cos(angle) * r + (Math.random() - 0.5) * 25;
-                c.y = cy + Math.sin(angle) * r * 0.65 + (Math.random() - 0.5) * 18;
-                c.x = Math.max(2, Math.min(aw - cw - 2, c.x));
-                c.y = Math.max(2, Math.min(ah - ch - 2, c.y));
-            });
-        });
-        while (idx < cards.length) {
-            const c = cards[idx]; c.layer = config.layers;
-            c.x = 15 + Math.random() * (aw - cw - 30);
-            c.y = 15 + Math.random() * (ah - ch - 30);
-            idx++;
+
+        // Responsive margins/gaps — smaller on narrow screens for more columns
+        // On iPhone SE (375px): M=6 gap=4 → 6 cols × 6 rows = 36 slots → plenty of space
+        const screenW = window.innerWidth;
+        const isNarrow = screenW < 400;
+        const M = isNarrow ? 6 : 8;
+        const gap = isNarrow ? 4 : 6;
+        const jitterAmount = isNarrow ? 6 : 8;
+        const stepX = cw + gap, stepY = ch + gap;
+        const cols = Math.floor((aw - M * 2 + gap) / stepX);
+        const rows = Math.floor((ah - M * 2 + gap) / stepY);
+        const gridSlots = [];
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                const x = M + c * stepX;
+                const y = M + r * stepY;
+                if (x + cw <= aw - 2 && y + ch <= ah - 2) gridSlots.push({ x, y });
+            }
         }
+
+        const slotCount = gridSlots.length;
+        const overlapFrac = isNarrow ? 0.06 : 0.08;
+        const totalCards = config.layerCards.reduce((s, n) => s + n, 0);
+
+        // Shuffle slot assignment: cards are placed across the grid in random order
+        const slotOrder = [];
+        for (let i = 0; i < Math.ceil(totalCards / slotCount); i++) {
+            const shuffled = this.shuffleArray(gridSlots.map((_, idx) => idx));
+            slotOrder.push(...shuffled);
+        }
+
+        let ci = 0;
+        for (let i = 0; i < totalCards && ci < cards.length; i++, ci++) {
+            let li = 0, accum = 0;
+            for (let l = 0; l < config.layerCards.length; l++) {
+                if (i < accum + config.layerCards[l]) { li = l; break; }
+                accum += config.layerCards[l];
+            }
+
+            const card = cards[ci];
+            card.layer = li;
+            const slot = gridSlots[slotOrder[i % slotOrder.length]];
+            const offX = li * cw * overlapFrac;
+            const offY = li * ch * overlapFrac;
+            card.x = slot.x + offX + (Math.random() - 0.5) * jitterAmount;
+            card.y = slot.y + offY + (Math.random() - 0.5) * jitterAmount;
+            card.x = Math.max(2, Math.min(aw - cw - 2, card.x));
+            card.y = Math.max(2, Math.min(ah - ch - 2, card.y));
+        }
+
+        while (ci < cards.length) {
+            const card = cards[ci];
+            card.layer = config.layerCards.length;
+            card.x = M + Math.random() * (aw - cw - M * 2);
+            card.y = M + Math.random() * (ah - ch - M * 2);
+            ci++;
+        }
+        cards.sort((a, b) => a.layer - b.layer);
     }
 
-    // 第三关：混沌堆叠 — 12种图案 x 每组9张 = 108张牌，7层密集堆叠，极度遮挡
+    // 第三关：混沌堆叠 — 7种图案 × 每组9张 = 63张牌，2层，中等难度
     layoutChaos(cards, config) {
         const aw = this.elCardArea.clientWidth || 340;
         const ah = this.elCardArea.clientHeight || 420;
         const cw = CONFIG.CARD_WIDTH, ch = CONFIG.CARD_HEIGHT;
-        let idx = 0;
 
-        config.layerCards.forEach((count, li) => {
-            const layerCards = cards.slice(idx, idx + count);
-            idx += count;
-            // 每层不同的散布策略，制造不规则堆叠
-            const cx = aw / 2, cy = ah / 2;
-
-            layerCards.forEach((c, i) => {
-                c.layer = li;
-                // 底层：大范围散布；越上层越集中，遮挡更严重
-                const spreadX = aw * 0.40 * (1 - li / config.layers * 0.6);
-                const spreadY = ah * 0.35 * (1 - li / config.layers * 0.5);
-                // 用贝塞尔曲线模拟真实堆叠：中心密度高，边缘稀疏
-                const t = i / Math.max(count - 1, 1);
-                const angleBase = (i * 2.399) % (Math.PI * 2);
-                const radiusScale = Math.sin(t * Math.PI) * 0.3 + 0.7;
-
-                c.x = cx - cw / 2 + Math.cos(angleBase) * spreadX * radiusScale
-                    + (Math.random() - 0.5) * cw * 0.6;
-                c.y = cy - ch / 2 + Math.sin(angleBase) * spreadY * radiusScale
-                    + (Math.random() - 0.5) * ch * 0.55;
-
-                // 夹紧边界
-                c.x = Math.max(1, Math.min(aw - cw - 1, c.x));
-                c.y = Math.max(1, Math.min(ah - ch - 1, c.y));
-            });
-        });
-
-        // 剩余卡牌随机散布到最上层
-        while (idx < cards.length) {
-            const c = cards[idx];
-            c.layer = config.layers;
-            c.x = 8 + Math.random() * (aw - cw - 16);
-            c.y = 8 + Math.random() * (ah - ch - 16);
-            idx++;
+        // Responsive: narrower margins/gaps on small screens for more columns
+        const screenW = window.innerWidth;
+        const isNarrow = screenW < 400;
+        const M = isNarrow ? 2 : 4;
+        const gap = isNarrow ? 4 : 6;
+        const overlapFrac = isNarrow ? 0.04 : 0.06;
+        const jitterAmount = isNarrow ? 8 : 12;
+        const stepX = cw + gap, stepY = ch + gap;
+        const cols = Math.floor((aw - M * 2 + gap) / stepX);
+        const rows = Math.floor((ah - M * 2 + gap) / stepY);
+        const gridSlots = [];
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                const x = M + c * stepX;
+                const y = M + r * stepY;
+                if (x + cw <= aw - 2 && y + ch <= ah - 2) gridSlots.push({ x, y });
+            }
         }
+
+        const slotCount = gridSlots.length;
+        const totalCards = config.layerCards.reduce((s, n) => s + n, 0);
+
+        const slotOrder = [];
+        for (let i = 0; i < Math.ceil(totalCards / slotCount); i++) {
+            const shuffled = this.shuffleArray(gridSlots.map((_, idx) => idx));
+            slotOrder.push(...shuffled);
+        }
+
+        let ci = 0;
+        for (let i = 0; i < totalCards && ci < cards.length; i++, ci++) {
+            let li = 0, accum = 0;
+            for (let l = 0; l < config.layerCards.length; l++) {
+                if (i < accum + config.layerCards[l]) { li = l; break; }
+                accum += config.layerCards[l];
+            }
+
+            const card = cards[ci];
+            card.layer = li;
+            const slot = gridSlots[slotOrder[i % slotOrder.length]];
+            const offX = li * cw * overlapFrac;
+            const offY = li * ch * overlapFrac;
+            card.x = slot.x + offX + (Math.random() - 0.5) * jitterAmount;
+            card.y = slot.y + offY + (Math.random() - 0.5) * jitterAmount;
+            card.x = Math.max(1, Math.min(aw - cw - 1, card.x));
+            card.y = Math.max(1, Math.min(ah - ch - 1, card.y));
+        }
+
+        while (ci < cards.length) {
+            const card = cards[ci];
+            card.layer = config.layerCards.length;
+            card.x = M + Math.random() * (aw - cw - M * 2);
+            card.y = M + Math.random() * (ah - ch - M * 2);
+            ci++;
+        }
+        cards.sort((a, b) => a.layer - b.layer);
     }
 
     renderCards() {
@@ -690,35 +753,70 @@ class SheepGame {
     updateCardAvailability() {
         const cw = CONFIG.CARD_WIDTH, ch = CONFIG.CARD_HEIGHT;
         const active = [];
-        for (let i = 0; i < this.cards.length; i++) {
+        for (let i = this.cards.length - 1; i >= 0; i--) {
             if (!this.cards[i].isEliminated && !this.cards[i].isInBuffer) active.push(this.cards[i]);
         }
         this._activeCards = active;
 
+        // Build _domIdx lookup once
+        const domMap = new Map();
+        active.forEach(c => { domMap.set(c.id, c._domIdx); });
+
+        // Build spatial grid for fast queries
+        const gridCellSize = Math.max(cw, ch);
+        const cols = Math.ceil((this.elCardArea.clientWidth || 400) / gridCellSize) + 1;
+        const grid = new Map();
         for (const card of active) {
+            const cx = Math.floor(card.x / gridCellSize);
+            const cy = Math.floor(card.y / gridCellSize);
+            const key = cx * cols + cy;
+            if (!grid.has(key)) grid.set(key, []);
+            grid.get(key).push(card);
+        }
+
+        for (let i = 0; i < active.length; i++) {
+            const card = active[i];
+            const cardDomIdx = domMap.get(card.id);
             let covered = false;
-            for (const o of active) {
-                if (o === card) continue;
-                // 只判断 DOM 顺序在自己之后（视觉上在上层）的卡牌
-                if (o._domIdx <= card._domIdx) continue;
-                // AABB 任意重叠即遮挡
-                if (o.x < card.x + cw && o.x + cw > card.x &&
-                    o.y < card.y + ch && o.y + ch > card.y) {
-                    covered = true; break;
+            const cx = Math.floor(card.x / gridCellSize);
+            const cy = Math.floor(card.y / gridCellSize);
+
+            // Check neighboring cells — a card can only overlap cells within 2 grid steps
+            for (let dx = -1; dx <= 1; dx++) {
+                for (let dy = -1; dy <= 1; dy++) {
+                    const cell = grid.get((cx + dx) * cols + (cy + dy));
+                    if (!cell) continue;
+                    for (let j = 0; j < cell.length; j++) {
+                        const o = cell[j];
+                        if (o === card) continue;
+                        const oDomIdx = domMap.get(o.id);
+                        if (oDomIdx <= cardDomIdx) continue;
+                        if (o.x < card.x + cw && o.x + cw > card.x &&
+                            o.y < card.y + ch && o.y + ch > card.y) {
+                            covered = true;
+                            dx = dy = 2; // break outer loops
+                            break;
+                        }
+                    }
                 }
             }
-            if (card.isCovered !== covered) {
-                card.isCovered = covered;
-                if (card.element) {
-                    if (covered) { card.element.classList.add('covered'); card.element.classList.remove('available'); }
-                    else { card.element.classList.remove('covered'); card.element.classList.add('available'); }
-                }
+            this._applyCoveredState(card, covered);
+        }
+    }
+
+    _applyCoveredState(card, covered) {
+        if (card.isCovered !== covered) {
+            card.isCovered = covered;
+            if (card.element) {
+                const el = card.element;
+                el.classList.toggle('covered', covered);
+                el.classList.toggle('available', !covered);
             }
         }
     }
 
     onCardClick(card) {
-        if (this.isGameOver || this.isProcessing) return;
+        if (this.isGameOver) return;
         if (card.isCovered || card.isInBuffer || card.isEliminated) { AudioSys.playError(); return; }
         if (this.buffer.length >= CONFIG.BUFFER_SIZE) {
             AudioSys.playError(); this.showHint('缓冲区已满！');
@@ -728,46 +826,22 @@ class SheepGame {
         }
 
         AudioSys.playClick();
-        this.isProcessing = true;
         this.history.push({ type:'move', cardId:card.id, from:'field', bufferLength:this.buffer.length });
 
-        // 获取目标槽位
-        const targetSlot = this.elBufferArea.querySelectorAll('.buffer-slot')[this.buffer.length];
-        const cardRect = card.element.getBoundingClientRect();
-        const targetRect = targetSlot.getBoundingClientRect();
+        // Remove card from field immediately, no animation delay
+        card.isInBuffer = true;
+        this.buffer.push(card);
+        if (card.element && card.element.parentNode) card.element.remove();
+        card.element = null;
 
-        const dx = targetRect.left + targetRect.width/2 - cardRect.left - cardRect.width/2;
-        const dy = targetRect.top + targetRect.height/2 - cardRect.top - cardRect.height/2;
-
-        // --- Web Animations API: 只用 transform + opacity (compositor-only) ---
-        card.element.classList.add('flying');
-
-        const anim = card.element.animate([
-            { transform: 'translate(0,0) scale(1)', opacity: 1, offset: 0 },
-            { transform: 'translate(0,0) scale(1.12)', opacity: 1, offset: 0.08 },
-            { transform: 'translate(0,0) scale(0.88) rotate(3deg)', opacity: 1, offset: 0.22 },
-            { transform: `translate(${dx * 0.40}px, ${dy * 0.40}px) scale(0.42)`, opacity: 0.70, offset: 0.55 },
-            { transform: `translate(${dx * 0.80}px, ${dy * 0.80}px) scale(0.15)`, opacity: 0.25, offset: 0.82 },
-            { transform: `translate(${dx}px, ${dy}px) scale(0)`, opacity: 0, offset: 1 }
-        ], {
-            duration: 380,
-            easing: 'cubic-bezier(0.22, 0.61, 0.36, 1)',
-            fill: 'forwards'
-        });
-
-        anim.onfinish = () => {
-            card.isInBuffer = true;
-            this.buffer.push(card);
-            if (card.element && card.element.parentNode) {
-                card.element.classList.remove('flying');
-                card.element.remove();
-            }
-            this.updateBufferDisplay();
+        // Sync updates: DOM is changed now, player sees card in buffer instantly
+        this.updateBufferDisplay();
+        this.updateStats();
+        // Defer occlusion recalculation to next animation frame (fine, UI already updated)
+        requestAnimationFrame(() => {
             this.updateCardAvailability();
             this.checkElimination();
-            this.updateStats();
-            this.isProcessing = false;
-        };
+        });
     }
 
     updateBufferDisplay() {
@@ -789,14 +863,10 @@ class SheepGame {
         for (const [p, idxs] of Object.entries(cnt)) { if (idxs.length >= CONFIG.MATCH_COUNT) { target = p; break; } }
         if (target) { this.performElimination(target); }
         else {
-            // 缓冲区满：检查失败
-            if (this.buffer.length >= CONFIG.BUFFER_SIZE) { setTimeout(() => this.checkLose(), 80); }
-            // 缓冲区未满但场上无可用卡牌且暂存区空：也失败
+            if (this.buffer.length >= CONFIG.BUFFER_SIZE) { this.checkLose(); }
             else {
                 const hasAvailable = this._activeCards.some(c => !c.isCovered);
-                if (!hasAvailable && this.stash.length === 0) {
-                    setTimeout(() => this.checkLose(), 80);
-                }
+                if (!hasAvailable && this.stash.length === 0) this.checkLose();
             }
         }
     }
@@ -811,35 +881,30 @@ class SheepGame {
         this.buffer = newBuf;
         this.eliminated++;
 
-        // 消除特效
-        const slots = this.elBufferArea.querySelectorAll('.buffer-slot');
-        toElim.forEach((card, i) => {
-            setTimeout(() => {
-                const eff = document.createElement('div');
-                eff.className = 'eliminate-effect'; eff.textContent = '✨';
-                const midX = window.innerWidth / 2;
-                const midY = window.innerHeight * 0.8;
-                eff.style.left = (midX - 20 + (i - 1) * 30) + 'px';
-                eff.style.top = midY + 'px';
-                document.body.appendChild(eff);
-                setTimeout(() => eff.remove(), 800);
-            }, i * 60);
-        });
+        // 消除特效 (lightweight, no delay chaining)
+        for (let i = 0; i < toElim.length; i++) {
+            const eff = document.createElement('div');
+            eff.className = 'eliminate-effect'; eff.textContent = '✨';
+            const midX = window.innerWidth / 2;
+            const midY = window.innerHeight * 0.8;
+            eff.style.left = (midX - 20 + (i - 1) * 30) + 'px';
+            eff.style.top = midY + 'px';
+            document.body.appendChild(eff);
+            eff.addEventListener('animationend', () => eff.remove());
+        }
 
-        setTimeout(() => {
-            this.updateBufferDisplay();
-            slots.forEach(s => { delete s.dataset.animating; });
-            this.checkWin();
-            this.checkElimination();
-        }, 50);
+        this.updateBufferDisplay();
+        this.checkWin();
         this.updateStats();
+        // Check elimination on next frame to let buffer display settle
+        requestAnimationFrame(() => this.checkElimination());
     }
 
     checkWin() {
         const rem = this.cards.filter(c => !c.isEliminated && !c.isInBuffer).length;
         if (rem === 0 && this.buffer.length === 0) {
             this.isGameOver = true;
-            setTimeout(() => this.showResult(true), 150);
+            this.showResult(true);
         }
     }
 
@@ -851,7 +916,7 @@ class SheepGame {
         const hasAvailable = this._activeCards.some(c => !c.isCovered);
         if (!canEliminate && (!hasAvailable || this.buffer.length >= CONFIG.BUFFER_SIZE)) {
             this.isGameOver = true;
-            setTimeout(() => this.showResult(false), 120);
+            this.showResult(false);
         }
     }
 
@@ -880,7 +945,7 @@ class SheepGame {
     }
 
     useTool(type) {
-        if (this.isGameOver || this.isProcessing) return;
+        if (this.isGameOver) return;
         if (this.tools[type] <= 0) { this.showAdModal(type); return; }
         if (type === 'remove') this.toolRemove();
         else if (type === 'undo') this.toolUndo();
@@ -1026,8 +1091,11 @@ window.addEventListener('resize', () => {
     clearTimeout(rt);
     rt = setTimeout(() => {
         if (game.elGameContainer && game.elGameContainer.classList.contains('active')) {
+            game._recalcCardSize();
+            game._reLayoutCards();
             game.renderCards();
             game.updateCardAvailability();
+            game.updateBufferDisplay();
         }
     }, 200);
 });
@@ -1036,8 +1104,11 @@ window.addEventListener('resize', () => {
 window.addEventListener('orientationchange', () => {
     setTimeout(() => {
         if (game.elGameContainer && game.elGameContainer.classList.contains('active')) {
+            game._recalcCardSize();
+            game._reLayoutCards();
             game.renderCards();
             game.updateCardAvailability();
+            game.updateBufferDisplay();
         }
     }, 300);
 });
