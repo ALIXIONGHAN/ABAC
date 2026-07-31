@@ -84,12 +84,12 @@
         /* 顶栏 */
         .top-bar {
             display: flex; justify-content: space-between; align-items: center;
-            padding: 8px 14px; background: rgba(255,255,255,0.85);
+            padding: 10px 14px; background: rgba(255,255,255,0.85);
             border-bottom: 1px solid rgba(0,0,0,0.05);
         }
         .level-info {
             font-size: 14px; font-weight: 700; color: #3d6b3c;
-            background: rgba(61,107,60,0.08); padding: 4px 12px; border-radius: 12px;
+            background: rgba(61,107,60,0.08); padding: 5px 14px; border-radius: 12px;
         }
         .stats { display: flex; gap: 16px; font-size: 13px; color: #777; font-weight: 600; }
         .stats b { color: #3d6b3c; font-weight: 800; }
@@ -99,8 +99,9 @@
             flex: 1; position: relative; overflow: hidden;
             margin: 6px 8px;
             background: rgba(255,255,255,0.25);
-            border-radius: 14px; touch-action: none;
+            border-radius: 14px; touch-action: manipulation;
             border: 1px solid rgba(0,0,0,0.04);
+            -webkit-touch-callout: none;
         }
 
         /* 卡牌 */
@@ -110,7 +111,8 @@
             background: linear-gradient(155deg, #fffefc, #f3f1ec);
             border-radius: 9px;
             display: flex; align-items: center; justify-content: center;
-            font-size: 28px; cursor: pointer;
+            font-size: 28px;
+            touch-action: manipulation;  /* 快触响应 */
             box-shadow: 0 2px 5px rgba(0,0,0,0.07);
             border: 1px solid rgba(0,0,0,0.06);
             z-index: 1;
@@ -476,8 +478,7 @@ const CONFIG = {
     BUFFER_SIZE: 7,
     MATCH_COUNT: 3,
     TOOLS: { remove:{count:1,name:'移出'}, undo:{count:1,name:'撤销'}, shuffle:{count:1,name:'洗牌'} },
-    CARD_WIDTH: 52, CARD_HEIGHT: 58,
-    OVERLAP_THRESHOLD: 0.08
+    CARD_WIDTH: 52, CARD_HEIGHT: 58
 };
 
 const LEVELS = {
@@ -667,8 +668,10 @@ class SheepGame {
             el.className = 'card'; el.dataset.id = card.id; el.textContent = card.pattern;
             el.style.left = card.x + 'px'; el.style.top = card.y + 'px';
             el.style.zIndex = card.layer + 1;
-            el.addEventListener('click', () => this.onCardClick(card));
-            el.addEventListener('touchstart', function() { this.click(); }, {passive: false});
+            el.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                this.onCardClick(card);
+            });
             card.element = el; frag.appendChild(el);
         });
         this.elCardArea.appendChild(frag);
@@ -685,7 +688,6 @@ class SheepGame {
 
     updateCardAvailability() {
         const cw = CONFIG.CARD_WIDTH, ch = CONFIG.CARD_HEIGHT;
-        const area = cw * ch, th = CONFIG.OVERLAP_THRESHOLD;
         const active = [];
         for (let i = 0; i < this.cards.length; i++) {
             if (!this.cards[i].isEliminated && !this.cards[i].isInBuffer) active.push(this.cards[i]);
@@ -702,25 +704,22 @@ class SheepGame {
             for (let l = card.layer + 1; l <= maxLayer && !covered; l++) {
                 const uppers = byLayer[l]; if (!uppers) continue;
                 for (const o of uppers) {
-                    // 快速剔除：完全不重叠
-                    if (o.x >= card.x + cw || o.x + cw <= card.x ||
-                        o.y >= card.y + ch || o.y + ch <= card.y) continue;
-
-                    const ox = Math.min(card.x + cw, o.x + cw) - Math.max(card.x, o.x);
-                    const oy = Math.min(card.y + ch, o.y + ch) - Math.max(card.y, o.y);
-                    const overlapArea = ox * oy;
-
-                    // 判定一：重叠面积大于阈值
-                    if (overlapArea > area * th) { covered = true; break; }
-
-                    // 判定二：上层卡牌中心点落在下层卡牌内（即便只有小部分重叠）
-                    const oCx = o.x + cw / 2;
-                    const oCy = o.y + ch / 2;
-                    if (oCx > card.x && oCx < card.x + cw &&
-                        oCy > card.y && oCy < card.y + ch) { covered = true; break; }
+                    // 只要有重叠区域的矩形即判定为遮挡
+                    if (o.x < card.x + cw && o.x + cw > card.x &&
+                        o.y < card.y + ch && o.y + ch > card.y) {
+                        covered = true; break;
+                    }
                 }
             }
             if (card.isCovered !== covered) {
+                card.isCovered = covered;
+                if (card.element) {
+                    if (covered) { card.element.classList.add('covered'); card.element.classList.remove('available'); }
+                    else { card.element.classList.remove('covered'); card.element.classList.add('available'); }
+                }
+            }
+        }
+    }
                 card.isCovered = covered;
                 if (card.element) {
                     if (covered) { card.element.classList.add('covered'); card.element.classList.remove('available'); }
@@ -944,8 +943,10 @@ class SheepGame {
                 el.textContent = card.pattern;
                 el.style.left = card.x + 'px'; el.style.top = card.y + 'px';
                 el.style.zIndex = card.layer + 1;
-                el.addEventListener('click', () => this.onCardClick(card));
-                el.addEventListener('touchstart', function() { this.click(); }, {passive: false});
+                el.addEventListener('pointerdown', (e) => {
+                    e.preventDefault();
+                    this.onCardClick(card);
+                });
                 card.element = el;
                 this.elCardArea.appendChild(el);
                 // 弹出动画
