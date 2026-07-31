@@ -713,14 +713,6 @@ class SheepGame {
             }
         }
     }
-                card.isCovered = covered;
-                if (card.element) {
-                    if (covered) { card.element.classList.add('covered'); card.element.classList.remove('available'); }
-                    else { card.element.classList.remove('covered'); card.element.classList.add('available'); }
-                }
-            }
-        }
-    }
 
     onCardClick(card) {
         if (this.isGameOver || this.isProcessing) return;
