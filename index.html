@@ -86,13 +86,14 @@
 
         /* --- 顶部栏 --- */
         .header {
-            display: flex; align-items: center; gap: 12px;
-            margin-bottom: 10px; z-index: 10; width: 340px;
+            display: flex; align-items: center; gap: 10px;
+            margin-bottom: 10px; z-index: 10; width: min(92vw, 340px);
             justify-content: space-between;
         }
         .header h1 {
-            margin: 0; font-size: 1.4rem; color: var(--text-color);
+            margin: 0; font-size: clamp(1rem, 4.6vw, 1.3rem); color: var(--text-color);
             text-shadow: 0 1px 2px rgba(255,255,255,0.3);
+            white-space: nowrap;
             transition: color var(--transition-speed);
         }
         .header-controls { display: flex; gap: 8px; align-items: center; }
@@ -108,13 +109,17 @@
         .theme-btn:hover, .level-btn:hover { transform: scale(1.1); }
         .level-badge {
             font-size: 0.75rem; font-weight: 700; color: var(--text-color);
-            background: var(--board-bg); padding: 4px 10px; border-radius: 12px;
+            background: var(--board-bg); padding: 8px 12px; min-height: 38px;
+            display: inline-flex; align-items: center; border-radius: 14px;
             border: 1px solid var(--board-border); backdrop-filter: blur(4px);
+            cursor: pointer; touch-action: manipulation;
+            white-space: nowrap; transition: transform 0.2s;
         }
+        .level-badge:hover { transform: scale(1.06); }
 
         .progress-bar {
-            width: 100px; height: 8px; background: var(--progress-bg);
-            border-radius: 10px; overflow: hidden;
+            width: min(92vw, 340px); height: 8px; background: var(--progress-bg);
+            border-radius: 10px; overflow: hidden; margin-bottom: 14px;
         }
         .progress-fill {
             height: 100%; width: 0%; background: var(--progress-fill);
@@ -124,7 +129,7 @@
         /* --- 游戏区 --- */
         #game-area {
             position: relative;
-            width: 340px; height: 380px;
+            width: min(92vw, 340px); height: min(58vh, 380px);
             background: var(--board-bg);
             border-radius: 20px;
             backdrop-filter: blur(4px);
@@ -171,7 +176,7 @@
             transition: background var(--transition-speed);
         }
         #dock {
-            width: 370px; height: var(--dock-height);
+            width: min(96vw, 370px); height: var(--dock-height);
             background: var(--dock-bg);
             border-radius: 14px;
             display: flex; justify-content: center; align-items: center;
@@ -197,25 +202,55 @@
         }
 
         /* --- 弹窗 --- */
-        #modal-overlay {
+        #modal-overlay, #diff-overlay {
             position: fixed; inset: 0;
             background: rgba(0,0,0,0.4); backdrop-filter: blur(6px);
-            display: none; justify-content: center; align-items: center;
-            z-index: 999; opacity: 0; transition: opacity 0.3s ease;
+            display: flex; justify-content: center; align-items: center;
+            z-index: 999;
+            /* 移动端兼容：用 visibility+opacity 控制显隐，避免 display 切换在 iOS 上首次点击失效 */
+            visibility: hidden; opacity: 0; pointer-events: none;
+            transition: opacity 0.3s ease, visibility 0s linear 0.3s;
         }
-        #modal-overlay.show { display: flex; opacity: 1; }
+        #modal-overlay.show, #diff-overlay.show {
+            visibility: visible; opacity: 1; pointer-events: auto;
+            transition: opacity 0.3s ease;
+        }
         .modal-card {
             background: var(--modal-bg); border-radius: 24px; padding: 36px 40px;
             text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.15);
             transform: scale(0.9); transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1), background var(--transition-speed);
         }
-        #modal-overlay.show .modal-card { transform: scale(1); }
+        #modal-overlay.show .modal-card, #diff-overlay.show .modal-card { transform: scale(1); }
+
+        /* 难度面板：适配手机小屏（可滚动，不裁切底部按钮） */
+        #diff-overlay .modal-card {
+            max-height: 92dvh; overflow-y: auto;
+            padding: 24px 20px 20px;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* --- 难度选择面板 --- */
+        .diff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+        .diff-opt {
+            padding: 10px 12px; min-height: 44px; font-size: 0.95rem; font-weight: 700;
+            border: 2px solid var(--board-border); border-radius: 14px;
+            background: var(--board-bg); color: var(--text-color);
+            cursor: pointer; touch-action: manipulation; transition: all 0.15s;
+        }
+        .diff-opt:hover { transform: scale(1.05); }
+        .diff-opt.active {
+            background: var(--btn-bg); color: #fff;
+            border-color: transparent; box-shadow: 0 4px 12px var(--btn-shadow);
+        }
+        .diff-opt.span2 { grid-column: span 2; }
+        .modal-card .diff-hint { margin: 0 0 18px; font-size: 0.82rem; color: var(--modal-sub); }
         .modal-card h2 { margin: 0 0 8px; font-size: 1.8rem; color: var(--text-color); }
         .modal-card p { margin: 0 0 24px; color: var(--modal-sub); font-size: 0.95rem; }
         .btn-restart {
-            padding: 14px 48px; font-size: 1.1rem; font-weight: 700;
+            padding: 14px 48px; min-height: 44px; font-size: 1.1rem; font-weight: 700;
             background: var(--btn-bg); color: white; border: none; border-radius: 50px;
-            cursor: pointer; box-shadow: 0 4px 15px var(--btn-shadow);
+            cursor: pointer; touch-action: manipulation;
+            box-shadow: 0 4px 15px var(--btn-shadow);
             transition: transform 0.15s ease, box-shadow 0.15s ease;
         }
         .btn-restart:hover { transform: translateY(-2px); box-shadow: 0 6px 20px var(--btn-shadow); }
@@ -228,14 +263,15 @@
     <div class="header">
         <h1>🐑 羊了个羊</h1>
         <div class="header-controls">
-            <span class="level-badge" id="level-badge">Lv.1 随机</span>
-            <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+            <span class="level-badge" id="level-badge" onclick="openDifficultyPanel()" title="点击设置难度">🎯 Lv.1 随机</span>
             <button class="level-btn" onclick="nextLevel()" title="下一关">🗺️</button>
             <button class="theme-btn" onclick="toggleTheme()" title="切换主题" id="theme-icon">🌙</button>
         </div>
     </div>
 
     <div id="game-area"></div>
+
+    <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
 
     <div id="dock-wrapper"><div id="dock"></div></div>
 
@@ -244,6 +280,22 @@
             <h2 id="msg-title">🎉 通关啦！</h2>
             <p id="msg-desc">你太厉害了！</p>
             <button class="btn-restart" onclick="initGame()">再玩一次</button>
+        </div>
+    </div>
+
+    <div id="diff-overlay">
+        <div class="modal-card">
+            <h2>🎯 难度设置</h2>
+            <p id="diff-current">当前：⚖️ 普通</p>
+            <div class="diff-grid">
+                <button class="diff-opt" data-diff="easy">🌱 简单</button>
+                <button class="diff-opt" data-diff="normal">⚖️ 普通</button>
+                <button class="diff-opt" data-diff="hard">🔥 困难</button>
+                <button class="diff-opt" data-diff="hell">💀 地狱</button>
+                <button class="diff-opt span2" data-diff="auto">🤖 自动（智能升降）</button>
+            </div>
+            <p class="diff-hint">🤖 自动模式：连赢 2 局自动升难度，连输 2 局自动降难度</p>
+            <button class="btn-restart" data-close="1">关闭</button>
         </div>
     </div>
 
@@ -330,11 +382,16 @@ const LEVELS = [
     {
         name: '随机',
         groups: 12,
-        layout: (w, h, ts) => ({
-            x: Math.random() * (w - ts),
-            y: Math.random() * (h - ts),
-            z: Math.floor(Math.random() * 30)
-        })
+        layout: (w, h, ts) => {
+            // 难度决定牌的密集程度（range 越小越集中、遮挡越多）与层数（zMax）
+            const r = curDiff.range, cw = w * r, ch = h * r;
+            const ox = (w - cw) / 2, oy = (h - ch) / 2;
+            return {
+                x: ox + Math.random() * (cw - ts),
+                y: oy + Math.random() * (ch - ts),
+                z: Math.floor(Math.random() * curDiff.zMax)
+            };
+        }
     },
     {
         name: '❤️ 心形',
@@ -349,7 +406,7 @@ const LEVELS = [
             return {
                 x: Math.max(0, Math.min(w - ts, cx + hx * scale + (Math.random()-0.5)*12)),
                 y: Math.max(0, Math.min(h - ts, cy + hy * scale + (Math.random()-0.5)*12)),
-                z: idx
+                z: Math.floor(Math.random() * curDiff.zMax)
             };
         }
     },
@@ -371,7 +428,7 @@ const LEVELS = [
             return {
                 x: Math.max(0, Math.min(w - ts, cx + px + (Math.random()-0.5)*10)),
                 y: Math.max(0, Math.min(h - ts, cy + py + (Math.random()-0.5)*10)),
-                z: idx
+                z: Math.floor(Math.random() * curDiff.zMax)
             };
         }
     },
@@ -388,7 +445,7 @@ const LEVELS = [
             return {
                 x: Math.max(0, Math.min(w - ts, cx + px + (Math.random()-0.5)*14)),
                 y: Math.max(0, Math.min(h - ts, cy + py + (Math.random()-0.5)*14)),
-                z: idx
+                z: Math.floor(Math.random() * curDiff.zMax)
             };
         }
     }
@@ -404,8 +461,25 @@ function nextLevel() {
 
 // ==================== 🎮 核心游戏逻辑 ====================
 const TILE_TYPES = ['🐑','🥕','🔥','🌲','🧶','✂️','🧀','🍄','🎵','💎'];
-const DOCK_CAPACITY = 7;
 const BOARD_W = 340, BOARD_H = 380, TILE_SIZE = 48;
+
+// ==================== 🎯 难度系统 ====================
+const DIFF_ORDER = ['easy', 'normal', 'hard', 'hell'];
+const DIFFICULTIES = {
+    easy:   { name: '🌱 简单', tileTypes: 6,  dock: 7, groups: 12, zMax: 4,  overlap: 10, range: 1.0 },
+    normal: { name: '⚖️ 普通', tileTypes: 8,  dock: 7, groups: 14, zMax: 12, overlap: 6,  range: 0.9 },
+    hard:   { name: '🔥 困难', tileTypes: 10, dock: 6, groups: 16, zMax: 22, overlap: 4,  range: 0.75 },
+    hell:   { name: '💀 地狱', tileTypes: 12, dock: 5, groups: 18, zMax: 32, overlap: 2,  range: 0.6 }
+};
+let currentDifficulty = 'normal';   // easy / normal / hard / hell / auto
+let autoLevelIdx = 1;               // 自动模式下当前档位（0=easy ... 3=hell）
+let winStreak = 0, lossStreak = 0;  // 连胜 / 连败计数（自动难度用）
+let curDiff = DIFFICULTIES.normal;  // 当前生效的难度参数
+
+function effectiveDifficulty() {
+    return currentDifficulty === 'auto' ? DIFF_ORDER[autoLevelIdx] : currentDifficulty;
+}
+function dockCapacity() { return DIFFICULTIES[effectiveDifficulty()].dock; }
 
 let tilesData = [], dockTiles = [], totalTiles = 0;
 
@@ -423,12 +497,16 @@ function initGame() {
     $modal.classList.remove('show');
 
     const level = LEVELS[currentLevelIdx];
-    $levelBadge.textContent = `Lv.${currentLevelIdx + 1} ${level.name}`;
+    curDiff = DIFFICULTIES[effectiveDifficulty()];
+    $levelBadge.textContent = `🎯 Lv.${currentLevelIdx + 1} ${level.name} · ${curDiff.name}`;
+    $levelBadge.title = `当前难度：${curDiff.name}（点击可设置）`;
 
-    // 生成牌池
+    // 生成牌池（难度决定：牌种类数 & 总组数）
     let pool = [];
-    for (let i = 0; i < level.groups; i++) {
-        const t = TILE_TYPES[i % TILE_TYPES.length];
+    const groups = Math.max(6, level.groups + (curDiff.groups - 14));
+    const types = TILE_TYPES.slice(0, curDiff.tileTypes);
+    for (let i = 0; i < groups; i++) {
+        const t = types[i % types.length];
         pool.push(t, t, t);
     }
     shuffle(pool);
@@ -473,13 +551,13 @@ function updateCoverStatus() {
 }
 
 function isOverlap(a, b) {
-    const s = 6;
+    const s = curDiff.overlap;
     return !(a.x + TILE_SIZE - s <= b.x + s || a.x + s >= b.x + TILE_SIZE - s ||
              a.y + TILE_SIZE - s <= b.y + s || a.y + s >= b.y + TILE_SIZE - s);
 }
 
 function onTileClick(tile) {
-    if (tile.el.classList.contains('covered') || tile.inDock || dockTiles.length >= DOCK_CAPACITY) return;
+    if (tile.el.classList.contains('covered') || tile.inDock || dockTiles.length >= dockCapacity()) return;
     
     AudioEngine.click();
     tile.inDock = true;
@@ -547,7 +625,7 @@ function checkGameState() {
     if (fieldLeft === 0 && dockTiles.length === 0) {
         AudioEngine.win();
         showModal(true);
-    } else if (dockTiles.length >= DOCK_CAPACITY) {
+    } else if (dockTiles.length >= dockCapacity()) {
         AudioEngine.lose();
         showModal(false);
     }
@@ -555,10 +633,72 @@ function checkGameState() {
 
 function showModal(win) {
     $title.textContent = win ? '🎉 通关啦！' : '😢 槽位已满';
-    $desc.textContent = win
+    let desc = win
         ? `「${LEVELS[currentLevelIdx].name}」关卡完成！`
         : '别灰心，换个策略再试一次吧！';
+
+    // 自动难度：连赢 2 局升一档，连输 2 局降一档
+    if (currentDifficulty === 'auto') {
+        if (win) {
+            winStreak++; lossStreak = 0;
+            if (winStreak >= 2 && autoLevelIdx < DIFF_ORDER.length - 1) {
+                autoLevelIdx++; winStreak = 0;
+                desc += ` 🚀 难度自动提升为 ${DIFFICULTIES[DIFF_ORDER[autoLevelIdx]].name}！`;
+            }
+        } else {
+            lossStreak++; winStreak = 0;
+            if (lossStreak >= 2 && autoLevelIdx > 0) {
+                autoLevelIdx--; lossStreak = 0;
+                desc += ` 😌 难度自动降低为 ${DIFFICULTIES[DIFF_ORDER[autoLevelIdx]].name}，继续加油！`;
+            }
+        }
+    }
+    $desc.textContent = desc;
     $modal.classList.add('show');
+}
+
+// ==================== 🎯 难度选择面板 ====================
+const $diffOverlay = document.getElementById('diff-overlay');
+const $diffCurrent = document.getElementById('diff-current');
+
+function openDifficultyPanel() {
+    AudioEngine.click();
+    $modal.classList.remove('show');   // 结算弹窗开着时先关闭，避免叠加遮挡
+    updateDiffPanel();
+    $diffOverlay.classList.add('show');
+}
+
+// 难度面板事件委托：比内联 onclick 更可靠地兼容移动端触摸点击
+$diffOverlay.addEventListener('click', e => {
+    const opt = e.target.closest('.diff-opt');
+    if (opt) { setDifficulty(opt.dataset.diff); return; }
+    if (e.target.closest('[data-close]')) { closeDifficultyPanel(); }
+});
+
+function closeDifficultyPanel() {
+    AudioEngine.click();
+    $diffOverlay.classList.remove('show');
+}
+
+function updateDiffPanel() {
+    const eff = effectiveDifficulty();
+    $diffCurrent.textContent = currentDifficulty === 'auto'
+        ? `当前：🤖 自动（${DIFFICULTIES[eff].name}）`
+        : `当前：${DIFFICULTIES[eff].name}`;
+    document.querySelectorAll('.diff-opt').forEach(b =>
+        b.classList.toggle('active', b.dataset.diff === currentDifficulty));
+}
+
+function setDifficulty(d) {
+    currentDifficulty = d;
+    if (d === 'auto') {
+        autoLevelIdx = Math.max(0, Math.min(DIFF_ORDER.length - 1, autoLevelIdx));
+        winStreak = 0; lossStreak = 0;
+    }
+    AudioEngine.click();
+    updateDiffPanel();
+    closeDifficultyPanel();
+    initGame();
 }
 
 // 首次初始化需要用户交互才能激活AudioContext，这里静默启动
