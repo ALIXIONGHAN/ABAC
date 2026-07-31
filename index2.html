@@ -464,11 +464,11 @@ const CONFIG = {
 };
 
 const LEVELS = {
-    1: { name:'第一关', patterns:3, cardsPerPattern:3, layout:'grid', layers:1, gridCols:3, gridRows:3 },
-    2: { name:'第二关', patterns:6, cardsPerPattern:9, layout:'pyramid', layers:2,
-         layerCards: [27, 27] },
-    3: { name:'第三关', patterns:12, cardsPerPattern:9, layout:'chaos', layers:5,
-         layerCards: [22, 22, 22, 21, 21] }
+    1: { name:'第一关', patterns:3, cardsPerPattern:3, layout:'grid', layers:1, gridCols:3, gridRows:3, bufferSize:7 },
+    2: { name:'第二关', patterns:8, cardsPerPattern:6, layout:'pyramid', layers:3,
+         layerCards: [16, 16, 16], bufferSize:7, overlapFrac: 0.10 },
+    3: { name:'第三关', patterns:12, cardsPerPattern:9, layout:'chaos', layers:7,
+         layerCards: [16, 16, 16, 15, 15, 15, 15], bufferSize:6, overlapFrac: 0.12, jitterAmount: 4 }
 };
 
 class SheepGame {
@@ -546,6 +546,9 @@ class SheepGame {
 
         this.elLevelDisplay.textContent = cfg.name;
         this.elStashArea.style.display = 'none';
+        // 缓冲区大小跟随关卡配置
+        CONFIG.BUFFER_SIZE = cfg.bufferSize || 7;
+        document.querySelector('.buffer-label').textContent = `缓冲区 (${CONFIG.BUFFER_SIZE})`;
         this.updateToolButtons();
         // Recalculate card size BEFORE generating cards (needs card area dimensions)
         this._recalcCardSize();
@@ -594,19 +597,17 @@ class SheepGame {
         });
     }
 
-    // L2: 中等难度 — 6种图案 × 每组9张 = 54张牌，2层，8格缓冲
+    // L2: 中等难度 — 8种图案 × 每组6张 = 48张牌，3层堆叠，7格缓冲，10%层偏移
     layoutPyramid(cards, config) {
         const aw = this.elCardArea.clientWidth || 340;
         const ah = this.elCardArea.clientHeight || 420;
         const cw = CONFIG.CARD_WIDTH, ch = CONFIG.CARD_HEIGHT;
 
-        // Well-spaced grid: M=8/gap=6 (desktop) or M=6/gap=4 (mobile).
-        // 2 layers offset 8% → plenty visible, partial overlap for strategy.
         const screenW = window.innerWidth;
         const isNarrow = screenW < 400;
-        const M = isNarrow ? 6 : 8;
-        const gap = isNarrow ? 4 : 6;
-        const jitterAmount = isNarrow ? 6 : 8;
+        const M = isNarrow ? 6 : 7;
+        const gap = isNarrow ? 2 : 4;
+        const jitterAmount = isNarrow ? 5 : 7;
         const stepX = cw + gap, stepY = ch + gap;
         const cols = Math.floor((aw - M * 2 + gap) / stepX);
         const rows = Math.floor((ah - M * 2 + gap) / stepY);
@@ -620,7 +621,7 @@ class SheepGame {
         }
 
         const slotCount = gridSlots.length;
-        const overlapFrac = isNarrow ? 0.06 : 0.08;
+        const overlapFrac = config.overlapFrac || 0.10;
         const totalCards = config.layerCards.reduce((s, n) => s + n, 0);
 
         // Shuffle slot assignment: cards are placed across the grid in random order
@@ -659,19 +660,18 @@ class SheepGame {
         cards.sort((a, b) => a.layer - b.layer);
     }
 
-    // 第三关：终极地狱 — 12种图案 × 每组9张 = 108张牌，5层密集堆叠，7格缓冲
+    // 第三关：终极地狱 — 12种图案 × 每组9张 = 108张牌，7层密集堆叠，6格缓冲
     layoutChaos(cards, config) {
         const aw = this.elCardArea.clientWidth || 340;
         const ah = this.elCardArea.clientHeight || 420;
         const cw = CONFIG.CARD_WIDTH, ch = CONFIG.CARD_HEIGHT;
 
-        // Hell mode: 12 patterns, 5 layers, tight grid (M=6, gap=0).
-        // 108 cards packed tight → ~49 grid slots → 2.2 cards/slot.
-        // 5 layers offset 6% per layer → bottom cards peeking through cracks.
-        // Real bottleneck: 12 patterns in 7-slot buffer = pattern dilution.
-        const M = 6, gap = 0;
-        const overlapFrac = 0.06;
-        const jitterAmount = 5;
+        // Hell mode: 12 patterns, 7 layers, tight grid (M=5, gap=0).
+        // 108 cards packed tight → few visible per layer → heavy occlusion.
+        // 6-slot buffer with 12 patterns = severe pattern dilution → brutal.
+        const M = 5, gap = 0;
+        const overlapFrac = config.overlapFrac || 0.12;
+        const jitterAmount = config.jitterAmount || 4;
         const stepX = cw + gap, stepY = ch + gap;
         const cols = Math.floor((aw - M * 2 + gap) / stepX);
         const rows = Math.floor((ah - M * 2 + gap) / stepY);
