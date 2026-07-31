@@ -340,7 +340,7 @@
         <div class="stash-slot" id="stash-2"></div>
     </div>
     <div id="card-area"></div>
-    <div id="buffer-area"><div class="buffer-label">缓冲区 (8)</div></div>
+    <div id="buffer-area"><div class="buffer-label">缓冲区 (7)</div></div>
     <div class="tools-bar">
         <button class="tool-btn" id="tool-remove" onclick="game.useTool('remove')">
             <span class="tool-icon">📤</span><span class="tool-name">移出</span>
@@ -457,9 +457,9 @@ const AudioSys = {
 
 const CONFIG = {
     PATTERNS: ['🐑','🍎','🌸','🌟','🍀','🦋','🌈','🍄','🐰','🎈','🍉','🌻'],
-    BUFFER_SIZE: 8,
+    BUFFER_SIZE: 7,
     MATCH_COUNT: 3,
-    TOOLS: { remove:{count:2,name:'移出'}, undo:{count:2,name:'撤销'}, shuffle:{count:2,name:'洗牌'} },
+    TOOLS: { remove:{count:3,name:'移出'}, undo:{count:3,name:'撤销'}, shuffle:{count:2,name:'洗牌'} },
     CARD_WIDTH: 52, CARD_HEIGHT: 58
 };
 
@@ -467,15 +467,15 @@ const LEVELS = {
     1: { name:'第一关', patterns:3, cardsPerPattern:3, layout:'grid', layers:1, gridCols:3, gridRows:3 },
     2: { name:'第二关', patterns:6, cardsPerPattern:9, layout:'pyramid', layers:2,
          layerCards: [27, 27] },
-    3: { name:'第三关', patterns:7, cardsPerPattern:9, layout:'chaos', layers:2,
-         layerCards: [32, 31] }
+    3: { name:'第三关', patterns:12, cardsPerPattern:9, layout:'chaos', layers:5,
+         layerCards: [22, 22, 22, 21, 21] }
 };
 
 class SheepGame {
     constructor() {
         this.currentLevel = 1;
         this.cards = []; this.buffer = []; this.stash = []; this.history = [];
-        this.tools = { remove:2, undo:2, shuffle:2 };
+        this.tools = { remove:3, undo:3, shuffle:2 };
         this.eliminated = 0; this.totalGroups = 0;
         this.isGameOver = false;
         this.adTimer = null; this._activeCards = [];
@@ -499,18 +499,14 @@ class SheepGame {
 
     _recalcCardSize() {
         const aw = this.elCardArea.clientWidth;
-        // Target: fit ~6 columns of cards with gaps on any screen (iPhone 375px → iPad 1024px)
         const targetCols = 6;
-        const totalGap = 8 * 2 + (targetCols - 1) * 4; // margins + card gaps
+        const totalGap = 8 * 2 + (targetCols - 1) * 4;
         const idealCw = Math.floor((aw - totalGap) / targetCols);
-        // Clamp: 36px minimum (readable emoji), 56px maximum (not absurdly large)
-        this._cw = Math.max(36, Math.min(56, idealCw));
+        this._cw = Math.max(34, Math.min(52, idealCw));
         this._ch = Math.round(this._cw * 58 / 52);
-        // Update CSS variables so all card elements resize instantly
         document.documentElement.style.setProperty('--cw', this._cw + 'px');
         document.documentElement.style.setProperty('--ch', this._ch + 'px');
         document.documentElement.style.setProperty('--bh', Math.round(this._ch * 1.2 + 4) + 'px');
-        // Sync CONFIG for layout math
         CONFIG.CARD_WIDTH = this._cw;
         CONFIG.CARD_HEIGHT = this._ch;
     }
@@ -540,7 +536,7 @@ class SheepGame {
         const cfg = LEVELS[this.currentLevel];
         this.cards = []; this.buffer = []; this.stash = []; this.history = [];
         this.eliminated = 0; this.isGameOver = false;
-        this.tools = { remove:2, undo:2, shuffle:2 };
+        this.tools = { remove:3, undo:3, shuffle:2 };
 
         this.elStartScreen.classList.add('hidden');
         setTimeout(() => {
@@ -598,13 +594,14 @@ class SheepGame {
         });
     }
 
+    // L2: 中等难度 — 6种图案 × 每组9张 = 54张牌，2层，8格缓冲
     layoutPyramid(cards, config) {
         const aw = this.elCardArea.clientWidth || 340;
         const ah = this.elCardArea.clientHeight || 420;
         const cw = CONFIG.CARD_WIDTH, ch = CONFIG.CARD_HEIGHT;
 
-        // Responsive margins/gaps — smaller on narrow screens for more columns
-        // On iPhone SE (375px): M=6 gap=4 → 6 cols × 6 rows = 36 slots → plenty of space
+        // Well-spaced grid: M=8/gap=6 (desktop) or M=6/gap=4 (mobile).
+        // 2 layers offset 8% → plenty visible, partial overlap for strategy.
         const screenW = window.innerWidth;
         const isNarrow = screenW < 400;
         const M = isNarrow ? 6 : 8;
@@ -662,19 +659,19 @@ class SheepGame {
         cards.sort((a, b) => a.layer - b.layer);
     }
 
-    // 第三关：混沌堆叠 — 7种图案 × 每组9张 = 63张牌，2层，中等难度
+    // 第三关：终极地狱 — 12种图案 × 每组9张 = 108张牌，5层密集堆叠，7格缓冲
     layoutChaos(cards, config) {
         const aw = this.elCardArea.clientWidth || 340;
         const ah = this.elCardArea.clientHeight || 420;
         const cw = CONFIG.CARD_WIDTH, ch = CONFIG.CARD_HEIGHT;
 
-        // Responsive: narrower margins/gaps on small screens for more columns
-        const screenW = window.innerWidth;
-        const isNarrow = screenW < 400;
-        const M = isNarrow ? 2 : 4;
-        const gap = isNarrow ? 4 : 6;
-        const overlapFrac = isNarrow ? 0.04 : 0.06;
-        const jitterAmount = isNarrow ? 8 : 12;
+        // Hell mode: 12 patterns, 5 layers, tight grid (M=6, gap=0).
+        // 108 cards packed tight → ~49 grid slots → 2.2 cards/slot.
+        // 5 layers offset 6% per layer → bottom cards peeking through cracks.
+        // Real bottleneck: 12 patterns in 7-slot buffer = pattern dilution.
+        const M = 6, gap = 0;
+        const overlapFrac = 0.06;
+        const jitterAmount = 5;
         const stepX = cw + gap, stepY = ch + gap;
         const cols = Math.floor((aw - M * 2 + gap) / stepX);
         const rows = Math.floor((ah - M * 2 + gap) / stepY);
