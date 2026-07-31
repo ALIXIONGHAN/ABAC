@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-<head> <!-- v=031 -->
+<head> <!-- v=032 -->
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, target-densitydpi=device-dpi">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="format-detection" content="telephone=no">
@@ -361,7 +361,7 @@
         <div class="stash-slot" id="stash-2"></div>
     </div>
     <div id="card-area"></div>
-    <div id="buffer-area"><div class="buffer-label">缓冲区</div></div>
+    <div id="buffer-area"><div class="buffer-label">缓冲区 (7)</div></div>
     <div class="tools-bar">
         <button class="tool-btn" id="tool-remove" onclick="game.useTool('remove')">
             <span class="tool-icon">📤</span><span class="tool-name">移出</span>
@@ -788,7 +788,17 @@ class SheepGame {
         let target = null;
         for (const [p, idxs] of Object.entries(cnt)) { if (idxs.length >= CONFIG.MATCH_COUNT) { target = p; break; } }
         if (target) { this.performElimination(target); }
-        else if (this.buffer.length >= CONFIG.BUFFER_SIZE) { setTimeout(() => this.checkLose(), 80); }
+        else {
+            // 缓冲区满：检查失败
+            if (this.buffer.length >= CONFIG.BUFFER_SIZE) { setTimeout(() => this.checkLose(), 80); }
+            // 缓冲区未满但场上无可用卡牌且暂存区空：也失败
+            else {
+                const hasAvailable = this._activeCards.some(c => !c.isCovered);
+                if (!hasAvailable && this.stash.length === 0) {
+                    setTimeout(() => this.checkLose(), 80);
+                }
+            }
+        }
     }
 
     performElimination(pattern) {
@@ -834,13 +844,14 @@ class SheepGame {
     }
 
     checkLose() {
-        if (this.buffer.length >= CONFIG.BUFFER_SIZE) {
-            const cnt = {};
-            this.buffer.forEach(c => { cnt[c.pattern] = (cnt[c.pattern] || 0) + 1; });
-            if (!Object.values(cnt).some(n => n >= CONFIG.MATCH_COUNT)) {
-                this.isGameOver = true;
-                setTimeout(() => this.showResult(false), 120);
-            }
+        // 缓冲区满且无法消除，或场上无可用卡牌
+        const cnt = {};
+        this.buffer.forEach(c => { cnt[c.pattern] = (cnt[c.pattern] || 0) + 1; });
+        const canEliminate = Object.values(cnt).some(n => n >= CONFIG.MATCH_COUNT);
+        const hasAvailable = this._activeCards.some(c => !c.isCovered);
+        if (!canEliminate && (!hasAvailable || this.buffer.length >= CONFIG.BUFFER_SIZE)) {
+            this.isGameOver = true;
+            setTimeout(() => this.showResult(false), 120);
         }
     }
 
