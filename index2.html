@@ -661,21 +661,19 @@ class SheepGame {
 
     renderCards() {
         this.elCardArea.innerHTML = '';
-        // 按层排序实现：渲染顺序 = 低层先渲染(在下) → 高层后渲染(在上)
         const sorted = [...this.cards].sort((a, b) => a.layer - b.layer);
         const frag = document.createDocumentFragment();
-        // 给每张卡分配全局递增的 zIndex，保证同层内后面的卡在上层
-        let zIdx = 1;
-        sorted.forEach(card => {
+        sorted.forEach((card, idx) => {
             const el = document.createElement('div');
             el.className = 'card'; el.dataset.id = card.id; el.textContent = card.pattern;
             el.style.left = card.x + 'px'; el.style.top = card.y + 'px';
-            el.style.zIndex = card.layer + 1;
+            // zIndex 按渲染顺序递增：后渲染=视觉上在更高层=可能盖住先渲染的
+            el.style.zIndex = idx + 1;
             el.addEventListener('pointerdown', (e) => {
                 e.preventDefault();
                 this.onCardClick(card);
             });
-            card.element = el; frag.appendChild(el);
+            card.element = el; card._domIdx = idx; frag.appendChild(el);
         });
         this.elCardArea.appendChild(frag);
     }
@@ -697,21 +695,16 @@ class SheepGame {
         }
         this._activeCards = active;
 
-        const byLayer = {};
-        for (const c of active) { if (!byLayer[c.layer]) byLayer[c.layer] = []; byLayer[c.layer].push(c); }
-        const layers = Object.keys(byLayer).map(Number).sort((a,b) => a - b);
-        const maxLayer = layers.length ? layers[layers.length - 1] : 0;
-
         for (const card of active) {
             let covered = false;
-            for (let l = card.layer + 1; l <= maxLayer && !covered; l++) {
-                const uppers = byLayer[l]; if (!uppers) continue;
-                for (const o of uppers) {
-                    // 只要有重叠区域的矩形即判定为遮挡
-                    if (o.x < card.x + cw && o.x + cw > card.x &&
-                        o.y < card.y + ch && o.y + ch > card.y) {
-                        covered = true; break;
-                    }
+            for (const o of active) {
+                if (o === card) continue;
+                // 只判断 DOM 顺序在自己之后（视觉上在上层）的卡牌
+                if (o._domIdx <= card._domIdx) continue;
+                // AABB 任意重叠即遮挡
+                if (o.x < card.x + cw && o.x + cw > card.x &&
+                    o.y < card.y + ch && o.y + ch > card.y) {
+                    covered = true; break;
                 }
             }
             if (card.isCovered !== covered) {
@@ -945,7 +938,7 @@ class SheepGame {
                 el.className = 'card available'; el.dataset.id = card.id;
                 el.textContent = card.pattern;
                 el.style.left = card.x + 'px'; el.style.top = card.y + 'px';
-                el.style.zIndex = card.layer + 1;
+                el.style.zIndex = card._domIdx + 1;
                 el.addEventListener('pointerdown', (e) => {
                     e.preventDefault();
                     this.onCardClick(card);
