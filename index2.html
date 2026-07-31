@@ -477,7 +477,7 @@ const CONFIG = {
     PATTERNS: ['🐑','🍎','🌸','🌟','🍀','🦋','🌈','🍄','🐰','🎈','🍉','🌻'],
     BUFFER_SIZE: 7,
     MATCH_COUNT: 3,
-    TOOLS: { remove:{count:1,name:'移出'}, undo:{count:1,name:'撤销'}, shuffle:{count:1,name:'洗牌'} },
+    TOOLS: { remove:{count:2,name:'移出'}, undo:{count:2,name:'撤销'}, shuffle:{count:2,name:'洗牌'} },
     CARD_WIDTH: 52, CARD_HEIGHT: 58
 };
 
@@ -493,7 +493,7 @@ class SheepGame {
     constructor() {
         this.currentLevel = 1;
         this.cards = []; this.buffer = []; this.stash = []; this.history = [];
-        this.tools = { remove:1, undo:1, shuffle:1 };
+        this.tools = { remove:2, undo:2, shuffle:2 };
         this.eliminated = 0; this.totalGroups = 0;
         this.isGameOver = false; this.isProcessing = false;
         this.adTimer = null; this._activeCards = [];
@@ -539,7 +539,7 @@ class SheepGame {
         const cfg = LEVELS[this.currentLevel];
         this.cards = []; this.buffer = []; this.stash = []; this.history = [];
         this.eliminated = 0; this.isGameOver = false; this.isProcessing = false;
-        this.tools = { remove:1, undo:1, shuffle:1 };
+        this.tools = { remove:2, undo:2, shuffle:2 };
 
         this.elStartScreen.classList.add('hidden');
         setTimeout(() => {
