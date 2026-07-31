@@ -477,7 +477,7 @@ const CONFIG = {
     MATCH_COUNT: 3,
     TOOLS: { remove:{count:1,name:'移出'}, undo:{count:1,name:'撤销'}, shuffle:{count:1,name:'洗牌'} },
     CARD_WIDTH: 52, CARD_HEIGHT: 58,
-    OVERLAP_THRESHOLD: 0.3
+    OVERLAP_THRESHOLD: 0.08
 };
 
 const LEVELS = {
@@ -694,17 +694,30 @@ class SheepGame {
 
         const byLayer = {};
         for (const c of active) { if (!byLayer[c.layer]) byLayer[c.layer] = []; byLayer[c.layer].push(c); }
-        const maxLayer = Math.max(...Object.keys(byLayer).map(Number));
+        const layers = Object.keys(byLayer).map(Number).sort((a,b) => a - b);
+        const maxLayer = layers.length ? layers[layers.length - 1] : 0;
 
         for (const card of active) {
             let covered = false;
             for (let l = card.layer + 1; l <= maxLayer && !covered; l++) {
                 const uppers = byLayer[l]; if (!uppers) continue;
                 for (const o of uppers) {
-                    if (o.x > card.x + cw || o.x + cw < card.x || o.y > card.y + ch || o.y + ch < card.y) continue;
+                    // 快速剔除：完全不重叠
+                    if (o.x >= card.x + cw || o.x + cw <= card.x ||
+                        o.y >= card.y + ch || o.y + ch <= card.y) continue;
+
                     const ox = Math.min(card.x + cw, o.x + cw) - Math.max(card.x, o.x);
                     const oy = Math.min(card.y + ch, o.y + ch) - Math.max(card.y, o.y);
-                    if (ox * oy > area * th) { covered = true; break; }
+                    const overlapArea = ox * oy;
+
+                    // 判定一：重叠面积大于阈值
+                    if (overlapArea > area * th) { covered = true; break; }
+
+                    // 判定二：上层卡牌中心点落在下层卡牌内（即便只有小部分重叠）
+                    const oCx = o.x + cw / 2;
+                    const oCy = o.y + ch / 2;
+                    if (oCx > card.x && oCx < card.x + cw &&
+                        oCy > card.y && oCy < card.y + ch) { covered = true; break; }
                 }
             }
             if (card.isCovered !== covered) {
